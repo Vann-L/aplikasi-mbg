@@ -37,7 +37,7 @@ test('admin can reset another user password', function () {
     $this->actingAs($admin)->post(route('admin.users.reset-password', $target), [
         'password' => 'reset-password',
         'password_confirmation' => 'reset-password',
-    ])->assertRedirect(route('admin.dashboard'));
+    ])->assertRedirect(route('admin.user.index'))->assertSessionHas('status', 'Password berhasil direset.');
 
     expect(Hash::check('reset-password', $target->refresh()->password))->toBeTrue();
 });

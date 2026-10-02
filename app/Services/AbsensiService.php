@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Absensi;
 use App\Models\JadwalPegawai;
 use App\Models\Pegawai;
+use App\Values\JadwalEfektif;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -15,7 +16,10 @@ use Illuminate\Support\Facades\DB;
  */
 class AbsensiService
 {
-    public function __construct(private readonly AbsensiQrService $qr) {}
+    public function __construct(
+        private readonly AbsensiQrService $qr,
+        private readonly JadwalEfektifService $jadwalEfektif,
+    ) {}
 
     /**
      * Handle a valid scan for the given pegawai at the given moment.
@@ -30,21 +34,21 @@ class AbsensiService
             throw AbsensiScanException::reason('Token QR tidak valid atau sudah kedaluwarsa.');
         }
 
-        $jadwal = $pegawai->jadwalPada($now);
+        $efektif = $this->jadwalEfektif->efektif($pegawai, $now);
 
-        if ($jadwal === null) {
+        if ($efektif === null) {
             throw AbsensiScanException::reason('Tidak ada jadwal kerja untuk hari ini, absensi tidak dapat dilakukan.');
         }
 
-        if ($jadwal->status === JadwalPegawai::STATUS_IZIN) {
+        if ($efektif->status === JadwalPegawai::STATUS_IZIN) {
             throw AbsensiScanException::reason('Jadwal hari ini izin, tidak dapat melakukan absensi normal.');
         }
 
-        if ($jadwal->status === JadwalPegawai::STATUS_LIBUR) {
+        if ($efektif->status === JadwalPegawai::STATUS_LIBUR) {
             throw AbsensiScanException::reason('Jadwal hari ini libur, tidak dapat melakukan absensi normal.');
         }
 
-        return DB::transaction(function () use ($pegawai, $jadwal, $now): array {
+        return DB::transaction(function () use ($pegawai, $efektif, $now): array {
             $absensi = $pegawai->absensiPada($now);
 
             if ($absensi !== null) {
@@ -60,7 +64,7 @@ class AbsensiService
                 ];
             }
 
-            $status = $this->statusForScanTime($jadwal, $now);
+            $status = $this->statusForScanTime($efektif, $now);
 
             Absensi::create([
                 'pegawai_id' => $pegawai->id,
@@ -79,17 +83,15 @@ class AbsensiService
         });
     }
 
-    private function statusForScanTime(JadwalPegawai $jadwal, CarbonImmutable $now): string
+    private function statusForScanTime(JadwalEfektif $efektif, CarbonImmutable $now): string
     {
-        $jadwalJamMasuk = $jadwal->jam_masuk;
+        $jamMasuk = $efektif->jamMasuk;
 
-        if ($jadwalJamMasuk === null) {
+        if ($jamMasuk === null) {
             return Absensi::STATUS_HADIR;
         }
 
-        $batasMasuk = $now->copy()->setTimeFromTimeString($jadwalJamMasuk->format('H:i'));
-
-        return $now->lessThanOrEqualTo($batasMasuk)
+        return $now->lessThanOrEqualTo($jamMasuk)
             ? Absensi::STATUS_HADIR
             : Absensi::STATUS_TERLAMBAT;
     }

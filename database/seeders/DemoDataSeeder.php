@@ -9,6 +9,7 @@ use App\Models\JadwalPegawai;
 use App\Models\Menu;
 use App\Models\Pegawai;
 use App\Models\Penerimaan;
+use App\Models\PolaJadwal;
 use App\Models\Produksi;
 use App\Models\ProduksiBahan;
 use App\Models\Sekolah;
@@ -417,17 +418,20 @@ class DemoDataSeeder extends Seeder
     }
 
     /**
-     * Create demo schedules and attendance for the past few days.
+     * Create demo weekly patterns, one override and attendance history.
      *
-     * Historical days cover every recap status (hadir, terlambat, izin, alpa).
-     * Today, the demo petugas account (DEMO-K003 -> petugas@mbg.test) is left
-     * without any attendance record so a fresh QR scan can always be performed.
+     * Weekly patterns cover all seven days as kerja so the demo petugas can
+     * always scan on the actual run day. Historical days cover every recap
+     * status (hadir, terlambat, izin, alpa). Today, the demo petugas account
+     * (DEMO-K003 -> petugas@mbg.test) is left without any attendance record so
+     * a fresh QR scan can always be performed.
      */
     private function seedJadwalAbsensi(Pegawai $petugasProduksi): void
     {
         $today = $this->hariIni();
         $kemarin = $today->subDay();
         $tigaHariLalu = $today->subDays(3);
+        $mulaiPola = $today->subDays(14);
 
         $schedule = [
             'DEMO-K003' => ['jam_masuk' => '07:00', 'jam_pulang' => '16:00'],
@@ -440,21 +444,23 @@ class DemoDataSeeder extends Seeder
         foreach ($schedule as $kode => $jam) {
             $model = $pegawai[$kode];
 
-            foreach ([$kemarin, $today] as $tanggal) {
-                $jamMasuk = $tanggal->eq($today) && $model->is($petugasProduksi)
-                    ? CarbonImmutable::now(config('app.timezone'))->addMinutes(10)
-                    : $jam['jam_masuk'];
+            $hari = [];
 
-                JadwalPegawai::updateOrCreate(
-                    ['pegawai_id' => $model->id, 'tanggal' => $tanggal],
-                    [
-                        'jam_masuk' => $jamMasuk,
-                        'jam_pulang' => $jam['jam_pulang'],
-                        'status' => JadwalPegawai::STATUS_TERJADWAL,
-                        'catatan' => null,
-                    ],
-                );
+            for ($i = 0; $i < 7; $i++) {
+                $hari[] = [
+                    'status' => PolaJadwal::STATUS_KERJA,
+                    'jam_masuk' => $jam['jam_masuk'],
+                    'jam_pulang' => $jam['jam_pulang'],
+                ];
             }
+
+            PolaJadwal::updateOrCreate(
+                ['pegawai_id' => $model->id, 'berlaku_mulai' => $mulaiPola->toDateString()],
+                [
+                    'hari' => $hari,
+                    'keterangan' => self::DEMO.' Pola mingguan tetap (7 hari kerja).',
+                ],
+            );
         }
 
         $petugasDistribusi = $pegawai['DEMO-K004'];

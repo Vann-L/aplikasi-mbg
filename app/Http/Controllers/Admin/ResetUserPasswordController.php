@@ -16,6 +16,6 @@ class ResetUserPasswordController extends Controller
     {
         $user->update($request->safe()->only('password'));
 
-        return redirect()->route('admin.dashboard')->with('status', 'password-reset');
+        return redirect()->route('admin.user.index')->with('status', 'Password berhasil direset.');
     }
 }

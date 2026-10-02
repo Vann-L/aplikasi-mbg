@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Facades\Storage;
 
 #[Fillable(['nama', 'deskripsi', 'foto', 'status'])]
 class Menu extends Model
@@ -24,7 +23,7 @@ class Menu extends Model
      */
     public function fotoUrl(): ?string
     {
-        return $this->foto ? Storage::disk('public')->url($this->foto) : null;
+        return $this->foto ? asset('storage/'.$this->foto) : null;
     }
 
     /**

@@ -40,6 +40,14 @@ class Pegawai extends Model
     }
 
     /**
+     * Get all weekly patterns (with history) for this pegawai.
+     */
+    public function polaJadwal(): HasMany
+    {
+        return $this->hasMany(PolaJadwal::class, 'pegawai_id');
+    }
+
+    /**
      * Get all attendance records for this pegawai.
      */
     public function absensi(): HasMany

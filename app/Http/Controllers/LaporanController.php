@@ -7,8 +7,11 @@ use App\Models\BahanBaku;
 use App\Models\Distribusi;
 use App\Models\JadwalPegawai;
 use App\Models\Pegawai;
+use App\Models\PolaJadwal;
 use App\Models\Produksi;
 use App\Models\Sekolah;
+use App\Services\JadwalEfektifService;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Route;
@@ -16,6 +19,8 @@ use Illuminate\View\View;
 
 class LaporanController extends Controller
 {
+    public function __construct(private readonly JadwalEfektifService $jadwalEfektif) {}
+
     /**
      * Show the production report (read-only).
      */
@@ -158,7 +163,8 @@ class LaporanController extends Controller
     }
 
     /**
-     * Show the attendance report, reusing the Phase 9 recap logic.
+     * Show the attendance report across a date range, recomputed from the
+     * effective schedule (pattern + override + operational calendar).
      */
     public function absensi(Request $request): View
     {
@@ -167,46 +173,46 @@ class LaporanController extends Controller
         $pegawaiId = $request->integer('pegawai');
         $status = $request->string('status')->toString();
 
-        $rentangAwals = $tanggalAwal !== '' ? $tanggalAwal : '1970-01-01';
-        $rentangAkhirs = $tanggalAkhir !== '' ? $tanggalAkhir : '9999-12-31';
+        $awal = $tanggalAwal !== ''
+            ? CarbonImmutable::parse($tanggalAwal)
+            : $this->tanggalDataTerkecil();
 
-        $query = JadwalPegawai::query()
-            ->with('pegawai.absensi')
-            ->when($tanggalAwal !== '', fn ($query) => $query->whereDate('tanggal', '>=', $tanggalAwal))
-            ->when($tanggalAkhir !== '', fn ($query) => $query->whereDate('tanggal', '<=', $tanggalAkhir))
-            ->when($pegawaiId > 0, fn ($query) => $query->where('pegawai_id', $pegawaiId));
+        $akhir = $tanggalAkhir !== ''
+            ? CarbonImmutable::parse($tanggalAkhir)
+            : CarbonImmutable::today(config('app.timezone'));
 
-        if (in_array($status, $this->statusAbsensi(), true)) {
-            if ($status === JadwalPegawai::STATUS_IZIN) {
-                $query->where('status', JadwalPegawai::STATUS_IZIN);
-            } elseif ($status === 'libur') {
-                $query->where('status', JadwalPegawai::STATUS_LIBUR);
-            } else {
-                $query->where('status', JadwalPegawai::STATUS_TERJADWAL);
-
-                if ($status === Absensi::STATUS_ALPA) {
-                    $query->whereDoesntHave(
-                        'pegawai.absensi',
-                        fn ($query) => $query->whereBetween('tanggal', [$rentangAwals, $rentangAkhirs]),
-                    );
-                } else {
-                    $query->whereHas(
-                        'pegawai.absensi',
-                        fn ($query) => $query->whereBetween('tanggal', [$rentangAwals, $rentangAkhirs])->where('status', $status),
-                    );
-                }
-            }
+        if ($awal->greaterThan($akhir)) {
+            [$awal, $akhir] = [$akhir, $awal];
         }
 
-        $jadwal = $query
-            ->orderBy('tanggal')
-            ->orderBy('jam_masuk')
-            ->orderBy('id')
-            ->paginate(15)
-            ->withQueryString();
+        if ($awal->diffInDays($akhir) > 365) {
+            $akhir = $awal->addDays(365);
+        }
+
+        $rows = collect();
+
+        for ($tanggal = $awal; $tanggal->lessThanOrEqualTo($akhir); $tanggal = $tanggal->addDay()) {
+            $rekap = $this->jadwalEfektif->rekapHarian($tanggal)
+                ->when($pegawaiId > 0, fn ($items) => $items->where('pegawai.id', $pegawaiId));
+
+            $rows = $rows->merge($rekap->map(fn (array $baris) => ['tanggal' => $tanggal] + $baris));
+        }
+
+        if (in_array($status, $this->statusAbsensi(), true)) {
+            $rows = $rows->where('status', $status)->values();
+        }
+
+        $page = max(1, (int) $request->query('page', 1));
+        $rowsPaged = new LengthAwarePaginator(
+            $rows->forPage($page, 15)->values(),
+            $rows->count(),
+            15,
+            $page,
+            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'query' => $request->query()],
+        );
 
         return view('laporan.absensi', [
-            'jadwal' => $jadwal,
+            'rows' => $rowsPaged,
             'pegawaiList' => Pegawai::orderBy('nama')->get(),
             'tanggalAwal' => $tanggalAwal,
             'tanggalAkhir' => $tanggalAkhir,
@@ -216,6 +222,23 @@ class LaporanController extends Controller
             'routePrefix' => $this->prefix(),
             'active' => 'absensi',
         ]);
+    }
+
+    /**
+     * Earliest date any schedule-related data references, used as the default
+     * start of the attendance report when the user gives no range.
+     */
+    private function tanggalDataTerkecil(): CarbonImmutable
+    {
+        $tanggal = collect([
+            PolaJadwal::min('berlaku_mulai'),
+            JadwalPegawai::min('tanggal'),
+            Absensi::min('tanggal'),
+        ])->filter()->min();
+
+        return $tanggal !== null
+            ? CarbonImmutable::parse($tanggal)
+            : CarbonImmutable::today(config('app.timezone'))->subDays(6);
     }
 
     /**

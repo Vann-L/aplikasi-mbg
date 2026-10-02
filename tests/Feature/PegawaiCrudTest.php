@@ -2,6 +2,7 @@
 
 use App\Models\JadwalPegawai;
 use App\Models\Pegawai;
+use App\Models\PolaJadwal;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -121,6 +122,18 @@ test('pegawai with jadwal cannot be deleted', function () {
     $admin = User::factory()->admin()->create();
     $pegawai = Pegawai::factory()->create();
     JadwalPegawai::factory()->create(['pegawai_id' => $pegawai->id]);
+
+    $this->actingAs($admin)->delete(route('admin.pegawai.destroy', $pegawai))
+        ->assertRedirect(route('admin.pegawai.index'))
+        ->assertSessionHas('error');
+
+    $this->assertDatabaseHas('pegawai', ['id' => $pegawai->id]);
+});
+
+test('pegawai with pola jadwal cannot be deleted', function () {
+    $admin = User::factory()->admin()->create();
+    $pegawai = Pegawai::factory()->create();
+    PolaJadwal::factory()->create(['pegawai_id' => $pegawai->id]);
 
     $this->actingAs($admin)->delete(route('admin.pegawai.destroy', $pegawai))
         ->assertRedirect(route('admin.pegawai.index'))

@@ -35,6 +35,7 @@ Admin SPPG.
 Tanggung jawab:
 - Mengelola user
 - Mengelola pegawai
+- Mengelola jadwal kerja pegawai
 - Mengelola sekolah
 - Mengelola menu
 - Mengelola bahan baku
@@ -53,6 +54,7 @@ Tanggung jawab:
 - Monitoring distribusi
 - Monitoring penerimaan
 - Monitoring absensi
+- Melihat jadwal kerja pegawai
 - Melihat laporan
 - Approval tertentu jika nanti memang diperlukan
 
@@ -62,6 +64,7 @@ Petugas SPPG.
 
 Tanggung jawab:
 - Dashboard
+- Melihat jadwal kerja sendiri
 - Absensi
 - Produksi
 - Pemorsian
@@ -521,34 +524,109 @@ pembanding absensi pegawai:
 
 ```
 Pegawai
-→ Jadwal Kerja
+→ Jadwal Kerja (efektif)
 → Absensi
 ```
 
-Aturan FINAL MVP:
+### Konsep jadwal efektif (REDESIGN)
 
-- Satu pegawai **maksimal memiliki satu jadwal per tanggal** (unique
-  `pegawai_id` + `tanggal`).
-- **Split shift tidak didukung** pada MVP.
-- Status jadwal hanya:
-  - `terjadwal`
-  - `izin`
-  - `libur`
-- `jam_masuk` dan `jam_pulang` nullable hanya untuk status `izin`/`libur`.
-  Status `terjadwal` menyimpan jam masuk dan jam pulang (mis. 07:00–16:00).
-- Status `terlambat` dan `alpa` **BUKAN** status jadwal. Keduanya ditentukan
-  dari perbandingan jadwal dengan data absensi pada fase absensi.
-  Contoh: jadwal 07:00–16:00, absensi 06:55 → hadir, 07:03 → hadir,
-  07:17 → terlambat; jadwal aktif tanpa absensi → alpa.
+Jadwal kerja tidak lagi direkam per tanggal. Jadwal efektif didefinisikan
+sebagai kombinasi dari tiga sumber dengan prioritas tetap:
 
-Data jadwal pegawai:
-- id
-- pegawai_id
-- tanggal
-- jam_masuk
-- jam_pulang
-- status
-- catatan (nullable)
+```
+Kalender Operasional (libur SPPG)
+  → Override per tanggal  (jadwal_pegawai)
+    → Pola mingguan       (pola_jadwal)
+      → Tanpa pola        (tidak terjadwal)
+```
+
+Kapan pun sistem butuh "jam kerja hari ini/T", gunakan pemecah tunggal
+`JadwalEfektifService->efektif(pegawai, tanggal)` yang mengembalikan objek
+readonly `JadwalEfektif` (status, jamMasuk, jamPulang, sumber). Status hanya:
+
+- `terjadwal` (dari pola atau override)
+- `izin`
+- `libur` (dari pola, override, atau kalender operasional)
+
+Status `terlambat` dan `alpa` **BUKAN** status jadwal. Keduanya ditentukan
+dari perbandingan jadwal efektif dengan data absensi pada fase absensi.
+Jadwal efektif aktif tanpa absensi → `alpa`; pegawai tanpa jadwal →
+`tidak_terjadwal` (bukan alpa).
+
+### Skema
+
+`pola_jadwal` (pola mingguan tetap per pegawai):
+
+- id, pegawai_id (FK restrict), berlaku_mulai (date), hari (JSON 7 entri,
+  indeks 0=Senin .. 6=Minggu; tiap entri `status` + `jam_masuk` +
+  `jam_pulang` nullable), keterangan (nullable)
+- Unique `(pegawai_id, berlaku_mulai)`. Pola terbaru yang `berlaku_mulai <=
+  tanggal` yang menang.
+
+`kalender_operasional` (hari libur/operasional SPPG sekaligus):
+
+- id, tanggal (date, unique), status (`buka`/`libur`), alasan (nullable),
+  catatan (nullable)
+
+`jadwal_pegawai` = **tabel override per tanggal** (tetap seperti implementasi
+awal: unique `pegawai_id` + `tanggal`, kolom jam_masuk/jam_pulang/status/
+catatan). Override hanya diisi saat tanggal tertentu berbeda dari pola.
+
+### UI & Akses (selesai implementasi)
+
+Modul Jadwal di menu samping memiliki empat tab pada satu halaman:
+**Monitoring**, **Pola**, **Kalender Operasional**, dan **Override (Tanggal)**.
+
+- Admin (`admin.jadwal.*`): kelola penuh semua tab.
+  - Monitoring: matriks pegawai × 7 hari (Senin–Minggu) minggu berjalan,
+    navigasi minggu; huruf H/T/A/I/L/B = hadir/terlambat/alpa/izin/libur/
+    belum absen, `-` = tanpa jadwal.
+  - Pola: matriks pegawai × Sen–Min (jam atau "Libur"), CRUD pola dengan
+    validasi (7 hari, hari kerja wajib jam, pulang > masuk, duplikat
+    tanggal mulai ditolak). Pola dengan absensi pada periode cakupannya
+    tidak dapat dihapus.
+  - Kalender: CRUD tanggal operasional; tanggal ganda ditolak.
+  - Override: CRUD per tanggal (perilaku lama) + **Tukar Jadwal** (menukar
+    dua pegawai pada satu tanggal melalui pembuatan override).
+- Kepala (`kepala.jadwal.*`): read-only untuk monitoring, pola, kalender,
+  dan daftar override + detail.
+- Petugas (`petugas.jadwal.index`, "Jadwal Saya"): jadwal efektif miliknya
+  sendiri (kalender + override + pola) untuk rentang kemarin sampai empat
+  minggu ke depan. Identitas berasal dari `auth()->user()->pegawai`.
+
+Terhitung sejak REDESIGN, alur jarang mengisi `jadwal_pegawai` langsung;
+admin cukup mengelola pola mingguan dan kalender, lalu override hanya untuk
+pengecualian (libur khusus, tukar).
+
+### Absensi & laporan berbasis jadwal efektif
+
+- `AbsensiService::scan()` memakai `JadwalEfektifService`; pemindaian ditolak
+  bila tidak ada jadwal, hari izin, atau hari libur (pesan ramah). QR dinamis
+  tidak berubah.
+- Rekap absensi (index) = per tanggal: seluruh pegawai aktif, status
+  hadir/terlambat/izin/alpa/libur/tidak_terjadwal dari jadwal efektif.
+- Laporan absensi = per tanggal × pegawai dalam rentang filter (maksimal 365
+  hari), status turunan dari jadwal efektif.
+
+## 11.2 User Management (selesai implementasi)
+
+Mengelola akun aplikasi. Akses khusus role `admin` (menu **Pengguna** di
+sidebar, route `admin.user.*`).
+
+- **Role & status** (`users.role`/`users.status`): role `admin`/`kepala`/
+  `petugas`; status `active`/`inactive`. User `inactive` ditolak saat login.
+- **Relasi pegawai**: relasi satu-ke-satu user ↔ pegawai lewat `pegawai.user_id`
+  (nullable, unique, `onDelete: set null`). Role adalah otorisasi login dan
+  BEDA dari jabatan/bagian kerja pegawai.
+- **Buat akun** (`admin.user.store`): email unik, role/status dari role yang
+  dikenal, password minimal 8 karakter + konfirmasi, wajib memilih pegawai yang
+  belum punya akun. Akun yang dibuat tersimpan dengan password ter-hash.
+- **Edit akun** (`admin.user.update`): email unik kecuali dirinya sendiri,
+  role/status, dan relasi pegawai (hanya pegawai belum punya akun atau yang
+  sedang terhubung ke akun ini). Admin TIDAK dapat menonaktifkan akun sendiri.
+- **Reset password** (`admin.users.reset` + `admin.users.reset-password`):
+  reset manual oleh admin ke password baru; tidak ada email/OTP.
+- Tidak ada: registrasi mandiri, forgot password, audit log — sesuai §4 dan §5.
 
 ## 12. Laporan
 
@@ -726,8 +804,16 @@ Project akan dikembangkan bertahap:
 - **Phase 7:** Distribusi / pengiriman (selesai)
 - **Phase 8:** Penerimaan (selesai)
 - **Phase 9:** Absensi QR (selesai)
-- **Phase 10:** Laporan
-- **Phase 11:** Testing + polishing
+- **Phase 10:** Laporan (selesai)
+- **Phase 11:** Testing + polishing (selesai)
+- **Phase 11.1:** Jadwal Kerja Pegawai (REDESIGN: pola mingguan + kalender operasional + override + monitoring, selesai)
+- **Phase 11.1.1:** Konsistensi Jadwal Efektif — absensi, laporan, dashboard, dan
+  "Jadwal Saya" memakai `JadwalEfektifService` sebagai satu sumber jadwal
+  (selesai)
+- **Phase 11.2:** User Management (menu Pengguna admin: daftar, buat, edit,
+  nonaktifkan, reset password, selesai)
+- **Phase 11.3:** Documentation & Cleanup (penghapusan placeholder, audit,
+  dokumentasi, selesai)
 
 Setiap phase harus:
 1. dikerjakan sesuai scope

@@ -25,28 +25,32 @@
         @else
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <x-card title="Jadwal Hari Ini">
-                    @if ($jadwalHariIni === null)
+                    @if ($jadwalEfektifHariIni === null)
                         <p class="text-sm text-slate-500">Tidak ada jadwal kerja hari ini.</p>
                     @else
                         <dl class="space-y-3 text-sm">
                             <div class="flex items-start justify-between gap-4">
                                 <dt class="text-slate-500">Status Jadwal</dt>
                                 <dd>
-                                    @if ($jadwalHariIni->status === \App\Models\JadwalPegawai::STATUS_TERJADWAL)
+                                    @if ($jadwalEfektifHariIni->status === \App\Models\JadwalPegawai::STATUS_TERJADWAL)
                                         <span class="inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">Terjadwal</span>
                                     @else
-                                        <span class="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{{ ucfirst($jadwalHariIni->status) }}</span>
+                                        <span class="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">{{ ucfirst($jadwalEfektifHariIni->status) }}</span>
                                     @endif
                                 </dd>
                             </div>
-                            @if ($jadwalHariIni->status === \App\Models\JadwalPegawai::STATUS_TERJADWAL)
+                            @if ($jadwalEfektifHariIni->status === \App\Models\JadwalPegawai::STATUS_TERJADWAL)
                                 <div class="flex items-start justify-between gap-4">
                                     <dt class="text-slate-500">Jam Kerja</dt>
                                     <dd class="text-slate-800">
-                                        {{ $jadwalHariIni->jam_masuk?->format('H:i') ?? '-' }} &ndash; {{ $jadwalHariIni->jam_pulang?->format('H:i') ?? '-' }}
+                                        {{ $jadwalEfektifHariIni->jamMasuk?->format('H:i') ?? '-' }} &ndash; {{ $jadwalEfektifHariIni->jamPulang?->format('H:i') ?? '-' }}
                                     </dd>
                                 </div>
                             @endif
+                            <div class="flex items-start justify-between gap-4 border-t border-slate-100 pt-2">
+                                <dt class="text-slate-500">Sumber</dt>
+                                <dd class="capitalize text-slate-400">{{ $jadwalEfektifHariIni->sumber }}</dd>
+                            </div>
                         </dl>
                     @endif
                 </x-card>

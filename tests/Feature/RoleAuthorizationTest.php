@@ -74,10 +74,11 @@ test('role cannot access another role module route', function () {
     $this->actingAs($user)->get(route('kepala.laporan.index'))->assertForbidden();
 });
 
-test('admin can open a placeholder module page', function () {
+test('admin can open the user management page', function () {
     $user = User::factory()->admin()->create();
 
     $this->actingAs($user)->get(route('admin.user.index'))
         ->assertOk()
-        ->assertSee('Modul ini akan tersedia');
+        ->assertSee('Pengguna')
+        ->assertSee('Tambah Akun');
 });

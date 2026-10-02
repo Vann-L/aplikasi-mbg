@@ -92,9 +92,9 @@ class PegawaiController extends Controller
      */
     public function destroy(Pegawai $pegawai): RedirectResponse
     {
-        if ($pegawai->jadwalPegawai()->exists() || $pegawai->absensi()->exists()) {
+        if ($pegawai->jadwalPegawai()->exists() || $pegawai->absensi()->exists() || $pegawai->polaJadwal()->exists()) {
             return redirect()->route('admin.pegawai.index')
-                ->with('error', 'Pegawai tidak dapat dihapus karena masih memiliki jadwal atau absensi.');
+                ->with('error', 'Pegawai tidak dapat dihapus karena masih memiliki jadwal, pola, atau absensi.');
         }
 
         $pegawai->delete();

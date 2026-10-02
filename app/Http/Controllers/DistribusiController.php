@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\UpdateDistribusiRequest;
 use App\Models\Distribusi;
 use App\Models\Pegawai;
+use App\Models\Produksi;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -107,6 +108,10 @@ class DistribusiController extends Controller
      */
     public function destroy(Distribusi $distribusi): RedirectResponse
     {
+        if ($distribusi->produksi?->status !== Produksi::STATUS_BELUM_DIMULAI) {
+            return back()->with('error', 'Distribusi tidak dapat dihapus setelah produksi dimulai.');
+        }
+
         if (! in_array($distribusi->status, Distribusi::STATUS_PERENCANAAN, true)) {
             return back()->with('error', 'Distribusi yang sudah dikirim tidak dapat dihapus.');
         }

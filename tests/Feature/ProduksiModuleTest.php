@@ -181,6 +181,40 @@ test('bahan produksi dapat ditambahkan dengan satuan konsisten', function () {
     ])->assertSessionHasErrors('jumlah');
 });
 
+test('rencana distribusi tidak dapat dihapus setelah produksi dimulai', function () {
+    $admin = produksiAdmin();
+    $produksi = produksiDraft($admin);
+    $distribusi = Distribusi::factory()->create([
+        'produksi_id' => $produksi->id,
+        'tanggal' => $produksi->tanggal,
+        'status' => Distribusi::STATUS_DIJADWALKAN,
+    ]);
+    $produksi->forceFill(['status' => Produksi::STATUS_PERSIAPAN])->save();
+
+    $this->actingAs($admin)->delete(route('admin.produksi.distribution.destroy', [$produksi, $distribusi]))
+        ->assertSessionHas('error');
+
+    $this->assertDatabaseHas('distribusi', ['id' => $distribusi->id]);
+});
+
+test('bahan produksi tidak dapat dihapus setelah produksi dimulai', function () {
+    $admin = produksiAdmin();
+    $produksi = produksiDraft($admin);
+    $bahan = BahanBaku::factory()->create(['nama' => 'Ayam', 'satuan' => 'kg']);
+    $produksiBahan = ProduksiBahan::factory()->create([
+        'produksi_id' => $produksi->id,
+        'bahan_baku_id' => $bahan->id,
+        'jumlah' => 50,
+        'satuan' => 'kg',
+    ]);
+    $produksi->forceFill(['status' => Produksi::STATUS_PERSIAPAN])->save();
+
+    $this->actingAs($admin)->delete(route('admin.produksi.ingredient.destroy', [$produksi, $produksiBahan]))
+        ->assertSessionHas('error');
+
+    $this->assertDatabaseHas('produksi_bahan', ['id' => $produksiBahan->id]);
+});
+
 test('stok cukup maka produksi dapat dimulai', function () {
     $admin = produksiAdmin();
     $produksi = produksiDraft($admin);

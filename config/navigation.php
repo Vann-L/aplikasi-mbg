@@ -17,6 +17,7 @@ return [
         'admin' => [
             ['label' => 'Dashboard', 'route' => 'admin.dashboard'],
             ['label' => 'Pegawai', 'route' => 'admin.pegawai.index'],
+            ['label' => 'Jadwal', 'route' => 'admin.jadwal.monitoring'],
             ['label' => 'Sekolah', 'route' => 'admin.sekolah.index'],
             ['label' => 'Menu', 'route' => 'admin.menu.index'],
             ['label' => 'Bahan Baku', 'route' => 'admin.bahan-baku.index'],
@@ -26,7 +27,7 @@ return [
             ['label' => 'Penerimaan', 'route' => 'admin.penerimaan.index'],
             ['label' => 'Absensi', 'route' => 'admin.absensi.index'],
             ['label' => 'Laporan', 'route' => 'admin.laporan.index'],
-            ['label' => 'User', 'route' => 'admin.user.index'],
+            ['label' => 'Pengguna', 'route' => 'admin.user.index'],
         ],
 
         'kepala' => [
@@ -36,6 +37,7 @@ return [
             ['label' => 'Distribusi', 'route' => 'kepala.distribusi.index'],
             ['label' => 'Penerimaan', 'route' => 'kepala.penerimaan.index'],
             ['label' => 'Absensi', 'route' => 'kepala.absensi.index'],
+            ['label' => 'Jadwal', 'route' => 'kepala.jadwal.monitoring'],
             ['label' => 'Laporan', 'route' => 'kepala.laporan.index'],
         ],
 

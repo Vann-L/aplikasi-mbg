@@ -11,6 +11,8 @@ use App\Models\Produksi;
 use App\Models\Sekolah;
 use App\Models\StokMutation;
 use App\Models\User;
+use App\Services\JadwalEfektifService;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -417,12 +419,13 @@ test('laporan absensi status hadir, terlambat, alpa, izin is consistent', functi
         'status' => JadwalPegawai::STATUS_IZIN,
     ]);
 
-    $jadwal = JadwalPegawai::query()->orderBy('pegawai_id')->orderBy('id')->get();
+    $service = app(JadwalEfektifService::class);
+    $rows = $service->rekapHarian(CarbonImmutable::parse(now()->toDateString()));
 
-    expect($jadwal->where('pegawai_id', $hadirP->id)->first()->statusRekap())->toBe(Absensi::STATUS_HADIR);
-    expect($jadwal->where('pegawai_id', $telatP->id)->first()->statusRekap())->toBe(Absensi::STATUS_TERLAMBAT);
-    expect($jadwal->where('pegawai_id', $alpaP->id)->first()->statusRekap())->toBe(Absensi::STATUS_ALPA);
-    expect($jadwal->where('pegawai_id', $izinP->id)->first()->statusRekap())->toBe(Absensi::STATUS_IZIN);
+    expect($rows->firstWhere('pegawai.id', $hadirP->id)['status'])->toBe(Absensi::STATUS_HADIR);
+    expect($rows->firstWhere('pegawai.id', $telatP->id)['status'])->toBe(Absensi::STATUS_TERLAMBAT);
+    expect($rows->firstWhere('pegawai.id', $alpaP->id)['status'])->toBe(Absensi::STATUS_ALPA);
+    expect($rows->firstWhere('pegawai.id', $izinP->id)['status'])->toBe(Absensi::STATUS_IZIN);
 
     $this->actingAs($admin)->get(route('admin.laporan.absensi'))
         ->assertOk()

@@ -4,14 +4,22 @@ use App\Models\Absensi;
 use App\Models\BahanBaku;
 use App\Models\Distribusi;
 use App\Models\JadwalPegawai;
+use App\Models\KalenderOperasional;
 use App\Models\Menu;
 use App\Models\Pegawai;
+use App\Models\PolaJadwal;
 use App\Models\Produksi;
 use App\Models\Sekolah;
 use App\Models\User;
+use Carbon\CarbonImmutable;
+use Database\Factories\PolaJadwalFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
+
+afterEach(function () {
+    CarbonImmutable::setTestNow(null);
+});
 
 test('admin dashboard shows master data totals', function () {
     Pegawai::factory()->count(2)->create();
@@ -72,7 +80,7 @@ test('kepala dashboard lists ingredients below minimum stock', function () {
         ->assertViewHas('bahanBakuDiBawahMinimum', fn ($items) => $items->count() === 1);
 });
 
-test('petugas dashboard shows today schedule and attendance', function () {
+test('petugas dashboard shows today effective schedule and attendance', function () {
     $user = User::factory()->petugas()->create();
     $pegawai = Pegawai::factory()->create(['user_id' => $user->id]);
 
@@ -90,7 +98,7 @@ test('petugas dashboard shows today schedule and attendance', function () {
 
     $this->actingAs($user)->get(route('petugas.dashboard'))
         ->assertOk()
-        ->assertViewHas('jadwalHariIni', fn ($jadwal) => $jadwal !== null && $jadwal->pegawai_id === $pegawai->id)
+        ->assertViewHas('jadwalEfektifHariIni', fn ($jadwal) => $jadwal !== null && $jadwal->sumber === 'override' && $jadwal->jamMasuk?->format('H:i') === '07:00')
         ->assertViewHas('absensiHariIni', fn ($absensi) => $absensi !== null && $absensi->pegawai_id === $pegawai->id);
 });
 
@@ -99,6 +107,42 @@ test('petugas dashboard renders without a linked pegawai record', function () {
 
     $this->actingAs($user)->get(route('petugas.dashboard'))
         ->assertOk()
-        ->assertViewHas('jadwalHariIni', null)
+        ->assertViewHas('jadwalEfektifHariIni', null)
         ->assertViewHas('absensiHariIni', null);
+});
+
+test('petugas dashboard menampilkan jadwal efektif dari pola saat tanpa override', function () {
+    CarbonImmutable::setTestNow('2026-01-08 07:00:00', config('app.timezone'));
+    $user = User::factory()->petugas()->create();
+    $pegawai = Pegawai::factory()->create(['user_id' => $user->id, 'status' => Pegawai::STATUS_ACTIVE]);
+    PolaJadwal::factory()->create([
+        'pegawai_id' => $pegawai->id,
+        'berlaku_mulai' => '2026-01-05',
+        'hari' => PolaJadwalFactory::polaHari(['07:00', '16:00']),
+    ]);
+
+    $this->actingAs($user)->get(route('petugas.dashboard'))
+        ->assertOk()
+        ->assertViewHas('jadwalEfektifHariIni', fn ($jadwal) => $jadwal !== null && $jadwal->sumber === 'pola' && $jadwal->jamMasuk?->format('H:i') === '07:00')
+        ->assertSee('07:00')
+        ->assertDontSee('Belum ada jadwal');
+});
+
+test('petugas dashboard tidak cukup membaca override saja (kalender libur menang)', function () {
+    $user = User::factory()->petugas()->create();
+    $pegawai = Pegawai::factory()->create(['user_id' => $user->id, 'status' => Pegawai::STATUS_ACTIVE]);
+    KalenderOperasional::factory()->create(['tanggal' => today(), 'status' => KalenderOperasional::STATUS_LIBUR]);
+    JadwalPegawai::factory()->create([
+        'pegawai_id' => $pegawai->id,
+        'tanggal' => today(),
+        'jam_masuk' => '07:00',
+        'jam_pulang' => '16:00',
+        'status' => JadwalPegawai::STATUS_TERJADWAL,
+    ]);
+
+    $this->actingAs($user)->get(route('petugas.dashboard'))
+        ->assertOk()
+        ->assertViewHas('jadwalEfektifHariIni', fn ($jadwal) => $jadwal !== null && $jadwal->sumber === 'kalender' && $jadwal->status === JadwalPegawai::STATUS_LIBUR)
+        ->assertSee('Libur')
+        ->assertDontSee('07:00');
 });

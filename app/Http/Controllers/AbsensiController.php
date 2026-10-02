@@ -3,55 +3,51 @@
 namespace App\Http\Controllers;
 
 use App\Models\Absensi;
-use App\Models\JadwalPegawai;
 use App\Services\AbsensiQrService;
+use App\Services\JadwalEfektifService;
 use App\Support\QrCode;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
 
 class AbsensiController extends Controller
 {
-    public function __construct(protected readonly AbsensiQrService $qr) {}
+    public function __construct(
+        protected readonly AbsensiQrService $qr,
+        protected readonly JadwalEfektifService $jadwalEfektif,
+    ) {}
 
     /**
-     * Display the attendance recap filtered by date and status.
+     * Display the attendance recap filtered by date and status. Rows are
+     * derived from the effective schedule, so alpa, izin and libur reflect
+     * the weekly pattern plus any overrides and the operational calendar.
      */
     public function index(Request $request): View
     {
         $tanggal = $request->string('tanggal')->toString() ?: now()->toDateString();
         $status = $request->string('status')->toString();
 
-        $query = JadwalPegawai::query()->with('pegawai.absensi');
-
-        $query->whereDate('tanggal', $tanggal);
+        $rows = $this->jadwalEfektif->rekapHarian(CarbonImmutable::parse($tanggal));
 
         if (in_array($status, $this->availableStatuses(), true)) {
-            if ($status === JadwalPegawai::STATUS_IZIN) {
-                $query->where('status', JadwalPegawai::STATUS_IZIN);
-            } elseif ($status === 'libur') {
-                $query->where('status', JadwalPegawai::STATUS_LIBUR);
-            } else {
-                $query->where('status', JadwalPegawai::STATUS_TERJADWAL);
-
-                if ($status === Absensi::STATUS_ALPA) {
-                    $query->whereDoesntHave('pegawai.absensi', fn ($query) => $query->whereDate('tanggal', $tanggal));
-                } else {
-                    $query->whereHas('pegawai.absensi', fn ($query) => $query->whereDate('tanggal', $tanggal)->where('status', $status));
-                }
-            }
+            $rows = $rows->where('status', $status)->values();
         }
 
-        $jadwal = $query
-            ->orderBy('jam_masuk')
-            ->orderBy('id')
-            ->paginate(15)
-            ->withQueryString();
+        $page = max(1, (int) $request->query('page', 1));
+        $rowsPaged = new LengthAwarePaginator(
+            $rows->forPage($page, 15)->values(),
+            $rows->count(),
+            15,
+            $page,
+            ['path' => LengthAwarePaginator::resolveCurrentPath(), 'query' => $request->query()],
+        );
 
         return view('absensi.index', [
-            'jadwal' => $jadwal,
+            'rows' => $rowsPaged,
             'tanggal' => $tanggal,
             'status' => $status,
             'availableStatuses' => $this->availableStatuses(),

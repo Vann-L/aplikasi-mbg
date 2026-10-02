@@ -146,6 +146,21 @@ test('replacing a menu foto deletes the old file', function () {
     Storage::disk('public')->assertMissing($oldPath);
 });
 
+test('menu foto url uses the public storage path', function () {
+    Storage::fake('public');
+
+    $path = UploadedFile::fake()->image('menu.jpg', 100, 100)->store('menu-foto', 'public');
+    $menu = Menu::factory()->create(['foto' => $path]);
+
+    expect($menu->fotoUrl())->toContain('/storage/'.$path);
+});
+
+test('menu without foto has a null photo url', function () {
+    $menu = Menu::factory()->create(['foto' => null]);
+
+    expect($menu->fotoUrl())->toBeNull();
+});
+
 test('admin can delete a menu without produksi', function () {
     Storage::fake('public');
 

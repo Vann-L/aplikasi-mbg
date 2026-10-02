@@ -18,6 +18,16 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
+    public const ROLE_ADMIN = 'admin';
+
+    public const ROLE_KEPALA = 'kepala';
+
+    public const ROLE_PETUGAS = 'petugas';
+
+    public const STATUS_ACTIVE = 'active';
+
+    public const STATUS_INACTIVE = 'inactive';
+
     /**
      * Get the pegawai linked to this user account.
      */

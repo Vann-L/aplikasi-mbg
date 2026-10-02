@@ -5,6 +5,7 @@ use App\Models\JadwalPegawai;
 use App\Models\Pegawai;
 use App\Services\AbsensiQrService;
 use App\Services\AbsensiService;
+use App\Services\JadwalEfektifService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -47,7 +48,7 @@ test('terlambat detection compares the scan against the jadwal in the applicatio
     ]);
 
     $qr = new AbsensiQrService;
-    $result = (new AbsensiService($qr))->scan($pegawai, $qr->generate($now), $now);
+    $result = app(AbsensiService::class)->scan($pegawai, $qr->generate($now), $now);
 
     expect($result['status'])->toBe(Absensi::STATUS_TERLAMBAT);
 
@@ -58,10 +59,10 @@ test('terlambat detection compares the scan against the jadwal in the applicatio
     expect($absensi->jam_masuk?->format('H:i'))->toBe($now->format('H:i'));
 });
 
-test('alpa is derived from a today jadwal without attendance in the application timezone', function () {
-    $pegawai = Pegawai::factory()->create();
+test('alpa is derived from a today effective schedule without attendance in the application timezone', function () {
+    $pegawai = Pegawai::factory()->create(['status' => Pegawai::STATUS_ACTIVE]);
 
-    $jadwal = JadwalPegawai::factory()->create([
+    JadwalPegawai::factory()->create([
         'pegawai_id' => $pegawai->id,
         'tanggal' => today(),
         'jam_masuk' => '07:00',
@@ -69,7 +70,9 @@ test('alpa is derived from a today jadwal without attendance in the application 
         'status' => JadwalPegawai::STATUS_TERJADWAL,
     ]);
 
-    $jadwal->load('pegawai.absensi');
+    $service = app(JadwalEfektifService::class);
+    $efektif = $service->efektif($pegawai, CarbonImmutable::today());
 
-    expect($jadwal->statusRekap())->toBe(Absensi::STATUS_ALPA);
+    expect($efektif)->not->toBeNull();
+    expect($service->statusRekap($efektif, null))->toBe(Absensi::STATUS_ALPA);
 });

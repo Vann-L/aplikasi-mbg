@@ -6,11 +6,15 @@ use App\Http\Controllers\Controller;
 use App\Models\Distribusi;
 use App\Models\Pegawai;
 use App\Models\Produksi;
+use App\Services\JadwalEfektifService;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
+    public function __construct(private readonly JadwalEfektifService $jadwalEfektif) {}
+
     /**
      * Show the petugas dashboard with today's schedule, production and delivery.
      */
@@ -21,7 +25,9 @@ class DashboardController extends Controller
 
         return view('dashboard.petugas', [
             'pegawai' => $pegawai,
-            'jadwalHariIni' => $pegawai?->jadwalPegawai()->whereDate('tanggal', today())->first(),
+            'jadwalEfektifHariIni' => $pegawai === null
+                ? null
+                : $this->jadwalEfektif->efektif($pegawai, CarbonImmutable::today(config('app.timezone'))),
             'absensiHariIni' => $pegawai?->absensi()->whereDate('tanggal', today())->first(),
             'produksiHariIni' => Produksi::with('menu')->whereDate('tanggal', today())->orderBy('id')->get(),
             'distribusiHariIni' => $pegawai === null

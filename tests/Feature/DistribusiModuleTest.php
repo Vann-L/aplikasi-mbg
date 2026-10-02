@@ -115,6 +115,24 @@ test('distribusi yang sudah dikirim tidak dapat dijadwalkan ulang', function () 
     ])->assertSessionHasErrors('status');
 });
 
+test('distribusi tidak dapat dihapus setelah produksi dimulai', function () {
+    $admin = distribusiAdmin();
+    $produksi = Produksi::factory()->create([
+        'tanggal' => now()->toDateString(),
+        'status' => Produksi::STATUS_PERSIAPAN,
+    ]);
+    $distribusi = Distribusi::factory()->create([
+        'produksi_id' => $produksi->id,
+        'tanggal' => now()->toDateString(),
+        'status' => Distribusi::STATUS_DIJADWALKAN,
+    ]);
+
+    $this->actingAs($admin)->delete(route('admin.distribusi.destroy', $distribusi))
+        ->assertSessionHas('error');
+
+    $this->assertDatabaseHas('distribusi', ['id' => $distribusi->id]);
+});
+
 test('kepala hanya dapat membaca distribusi', function () {
     $kepala = distribusiKepala();
     $distribusi = distribusiDenganStatus(Distribusi::STATUS_DIJADWALKAN);

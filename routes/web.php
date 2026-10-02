@@ -3,17 +3,20 @@
 use App\Http\Controllers\AbsensiController;
 use App\Http\Controllers\Admin\BahanBakuController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Http\Controllers\Admin\JadwalController as AdminJadwalController;
 use App\Http\Controllers\Admin\MenuController;
 use App\Http\Controllers\Admin\PegawaiController;
 use App\Http\Controllers\Admin\ResetUserPasswordController;
 use App\Http\Controllers\Admin\SekolahController;
 use App\Http\Controllers\Admin\StokController as AdminStokController;
+use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\DistribusiController;
 use App\Http\Controllers\Kepala\AbsensiController as KepalaAbsensiController;
 use App\Http\Controllers\Kepala\DashboardController as KepalaDashboardController;
 use App\Http\Controllers\Kepala\DistribusiController as KepalaDistribusiController;
+use App\Http\Controllers\Kepala\JadwalController as KepalaJadwalController;
 use App\Http\Controllers\Kepala\PenerimaanController as KepalaPenerimaanController;
 use App\Http\Controllers\Kepala\ProduksiController as KepalaProduksiController;
 use App\Http\Controllers\Kepala\StokController as KepalaStokController;
@@ -21,8 +24,8 @@ use App\Http\Controllers\LaporanController;
 use App\Http\Controllers\PenerimaanController;
 use App\Http\Controllers\Petugas\AbsensiController as PetugasAbsensiController;
 use App\Http\Controllers\Petugas\DashboardController as PetugasDashboardController;
+use App\Http\Controllers\Petugas\JadwalController as PetugasJadwalController;
 use App\Http\Controllers\Petugas\StokController as PetugasStokController;
-use App\Http\Controllers\PlaceholderController;
 use App\Http\Controllers\ProduksiController;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -82,7 +85,12 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::get('/laporan/distribusi', [LaporanController::class, 'distribusi'])->name('laporan.distribusi');
     Route::get('/laporan/penerimaan', [LaporanController::class, 'penerimaan'])->name('laporan.penerimaan');
     Route::get('/laporan/absensi', [LaporanController::class, 'absensi'])->name('laporan.absensi');
-    Route::get('/users', PlaceholderController::class)->defaults('label', 'User')->name('user.index');
+    Route::get('/users', [AdminUserController::class, 'index'])->name('user.index');
+    Route::get('/users/create', [AdminUserController::class, 'create'])->name('user.create');
+    Route::post('/users', [AdminUserController::class, 'store'])->name('user.store');
+    Route::get('/users/{user}/edit', [AdminUserController::class, 'edit'])->whereNumber('user')->name('user.edit');
+    Route::put('/users/{user}', [AdminUserController::class, 'update'])->whereNumber('user')->name('user.update');
+    Route::get('/users/{user}/reset-password', [AdminUserController::class, 'resetPassword'])->whereNumber('user')->name('users.reset');
 
     Route::post('/users/{user}/reset-password', ResetUserPasswordController::class)->name('users.reset-password');
 });
@@ -129,6 +137,32 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
     Route::delete('/bahan-baku/{bahan_baku}', [BahanBakuController::class, 'destroy'])->whereNumber('bahan_baku')->name('bahan-baku.destroy');
 });
 
+Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/jadwal', [AdminJadwalController::class, 'index'])->name('jadwal.index');
+    Route::get('/jadwal/create', [AdminJadwalController::class, 'create'])->name('jadwal.create');
+    Route::post('/jadwal', [AdminJadwalController::class, 'store'])->name('jadwal.store');
+    Route::get('/jadwal/{jadwal}', [AdminJadwalController::class, 'show'])->whereNumber('jadwal')->name('jadwal.show');
+    Route::get('/jadwal/{jadwal}/edit', [AdminJadwalController::class, 'edit'])->whereNumber('jadwal')->name('jadwal.edit');
+    Route::put('/jadwal/{jadwal}', [AdminJadwalController::class, 'update'])->whereNumber('jadwal')->name('jadwal.update');
+    Route::delete('/jadwal/{jadwal}', [AdminJadwalController::class, 'destroy'])->whereNumber('jadwal')->name('jadwal.destroy');
+
+    Route::get('/jadwal/monitoring', [AdminJadwalController::class, 'monitoring'])->name('jadwal.monitoring');
+
+    Route::get('/jadwal/pola', [AdminJadwalController::class, 'pola'])->name('jadwal.pola');
+    Route::get('/jadwal/pola/create', [AdminJadwalController::class, 'polaCreate'])->name('jadwal.pola.create');
+    Route::post('/jadwal/pola', [AdminJadwalController::class, 'polaStore'])->name('jadwal.pola.store');
+    Route::get('/jadwal/pola/{pola}/edit', [AdminJadwalController::class, 'polaEdit'])->whereNumber('pola')->name('jadwal.pola.edit');
+    Route::put('/jadwal/pola/{pola}', [AdminJadwalController::class, 'polaUpdate'])->whereNumber('pola')->name('jadwal.pola.update');
+    Route::delete('/jadwal/pola/{pola}', [AdminJadwalController::class, 'polaDestroy'])->whereNumber('pola')->name('jadwal.pola.destroy');
+
+    Route::get('/jadwal/kalender', [AdminJadwalController::class, 'kalender'])->name('jadwal.kalender');
+    Route::post('/jadwal/kalender', [AdminJadwalController::class, 'kalenderStore'])->name('jadwal.kalender.store');
+    Route::put('/jadwal/kalender/{kalender}', [AdminJadwalController::class, 'kalenderUpdate'])->whereNumber('kalender')->name('jadwal.kalender.update');
+    Route::delete('/jadwal/kalender/{kalender}', [AdminJadwalController::class, 'kalenderDestroy'])->whereNumber('kalender')->name('jadwal.kalender.destroy');
+
+    Route::post('/jadwal/tukar', [AdminJadwalController::class, 'tukar'])->name('jadwal.tukar');
+});
+
 Route::middleware(['auth', 'role:kepala'])->prefix('kepala')->name('kepala.')->group(function () {
     Route::get('/', KepalaDashboardController::class)->name('dashboard');
 
@@ -145,6 +179,13 @@ Route::middleware(['auth', 'role:kepala'])->prefix('kepala')->name('kepala.')->g
     Route::get('/absensi/qr', [KepalaAbsensiController::class, 'qr'])->name('absensi.qr');
     Route::get('/absensi/qr/token', [KepalaAbsensiController::class, 'token'])->name('absensi.token');
     Route::get('/absensi/qr/img', [KepalaAbsensiController::class, 'qrImg'])->name('absensi.qr-img');
+
+    Route::get('/jadwal', [KepalaJadwalController::class, 'index'])->name('jadwal.index');
+    Route::get('/jadwal/{jadwal}', [KepalaJadwalController::class, 'show'])->whereNumber('jadwal')->name('jadwal.show');
+    Route::get('/jadwal/monitoring', [KepalaJadwalController::class, 'monitoring'])->name('jadwal.monitoring');
+    Route::get('/jadwal/pola', [KepalaJadwalController::class, 'pola'])->name('jadwal.pola');
+    Route::get('/jadwal/kalender', [KepalaJadwalController::class, 'kalender'])->name('jadwal.kalender');
+
     Route::get('/laporan', [LaporanController::class, 'produksi'])->name('laporan.index');
     Route::get('/laporan/produksi', [LaporanController::class, 'produksi'])->name('laporan.produksi');
     Route::get('/laporan/stok', [LaporanController::class, 'stok'])->name('laporan.stok');
@@ -161,7 +202,7 @@ Route::middleware(['auth', 'role:petugas'])->prefix('petugas')->name('petugas.')
     Route::get('/stok/mutasi/tambah', [PetugasStokController::class, 'create'])->name('stok.create');
     Route::post('/stok/mutasi', [PetugasStokController::class, 'store'])->name('stok.store');
 
-    Route::get('/jadwal', PlaceholderController::class)->defaults('label', 'Jadwal')->name('jadwal.index');
+    Route::get('/jadwal', [PetugasJadwalController::class, 'index'])->name('jadwal.index');
     Route::get('/absensi', [PetugasAbsensiController::class, 'index'])->name('absensi.index');
     Route::post('/absensi/scan', [PetugasAbsensiController::class, 'scan'])->name('absensi.scan');
     Route::get('/absensi/scan/{token}', [PetugasAbsensiController::class, 'scanToken'])->name('absensi.scan-token');

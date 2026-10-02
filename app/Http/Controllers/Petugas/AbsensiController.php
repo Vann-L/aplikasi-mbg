@@ -7,6 +7,7 @@ use App\Models\Pegawai;
 use App\Services\AbsensiQrService;
 use App\Services\AbsensiScanException;
 use App\Services\AbsensiService;
+use App\Services\JadwalEfektifService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,10 +18,11 @@ class AbsensiController extends Controller
     public function __construct(
         private readonly AbsensiService $absensi,
         private readonly AbsensiQrService $qr,
+        private readonly JadwalEfektifService $jadwalEfektif,
     ) {}
 
     /**
-     * Display today's schedule, today's attendance, and recent history.
+     * Display today's effective schedule, today's attendance, and recent history.
      */
     public function index(): View
     {
@@ -29,7 +31,9 @@ class AbsensiController extends Controller
 
         return view('absensi.saya', [
             'pegawai' => $pegawai,
-            'jadwalHariIni' => $pegawai?->jadwalPada($now),
+            'jadwalEfektifHariIni' => $pegawai === null
+                ? null
+                : $this->jadwalEfektif->efektif($pegawai, $now),
             'absensiHariIni' => $pegawai?->absensiPada($now),
             'riwayat' => $pegawai?->absensi()->latest('tanggal')->latest('id')->limit(30)->get() ?? collect(),
             'expirySeconds' => $this->qr->expirySeconds(),

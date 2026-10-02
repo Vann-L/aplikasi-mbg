@@ -22,34 +22,18 @@ class JadwalPegawai extends Model
 
     public const STATUS_LIBUR = 'libur';
 
+    public const STATUSES = [
+        self::STATUS_TERJADWAL,
+        self::STATUS_IZIN,
+        self::STATUS_LIBUR,
+    ];
+
     /**
      * Get the pegawai this schedule belongs to.
      */
     public function pegawai(): BelongsTo
     {
         return $this->belongsTo(Pegawai::class, 'pegawai_id');
-    }
-
-    /**
-     * Resolve the attendance status shown in a recap row: hadir/terlambat come
-     * from the attendance record, alpa when a terjadwal schedule has none, and
-     * izin/libur reflect the schedule itself.
-     */
-    public function statusRekap(): string
-    {
-        if ($this->status === self::STATUS_IZIN) {
-            return Absensi::STATUS_IZIN;
-        }
-
-        if ($this->status === self::STATUS_LIBUR) {
-            return self::STATUS_LIBUR;
-        }
-
-        $absensi = $this->pegawai->absensi->firstWhere(
-            fn (Absensi $absensi): bool => $absensi->tanggal?->toDateString() === $this->tanggal?->toDateString(),
-        );
-
-        return $absensi?->status ?? Absensi::STATUS_ALPA;
     }
 
     /**

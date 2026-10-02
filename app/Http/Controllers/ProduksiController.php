@@ -145,6 +145,10 @@ class ProduksiController extends Controller
     {
         abort_unless($distribusi->produksi_id === $produksi->id, 404);
 
+        if ($produksi->status !== Produksi::STATUS_BELUM_DIMULAI) {
+            return back()->with('error', 'Rencana distribusi tidak dapat dihapus setelah produksi dimulai.');
+        }
+
         $distribusi->delete();
         $produksi->perbaruiTargetPorsi();
 
@@ -174,6 +178,10 @@ class ProduksiController extends Controller
     public function destroyIngredient(Produksi $produksi, ProduksiBahan $produksiBahan): RedirectResponse
     {
         abort_unless($produksiBahan->produksi_id === $produksi->id, 404);
+
+        if ($produksi->status !== Produksi::STATUS_BELUM_DIMULAI) {
+            return back()->with('error', 'Bahan produksi tidak dapat dihapus setelah produksi dimulai.');
+        }
 
         $produksiBahan->delete();
 

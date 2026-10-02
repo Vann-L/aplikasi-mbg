@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Laporan Absensi')
-@section('subtitle', 'Rekap jadwal dan absensi pegawai')
+@section('subtitle', 'Rekap jadwal efektif dan absensi pegawai')
 
 @section('content')
     <div class="space-y-4">
@@ -56,9 +56,9 @@
         </div>
 
         <x-card>
-            @if ($jadwal->isEmpty())
+            @if ($rows->isEmpty())
                 <x-empty-state title="Belum ada data absensi"
-                    description="Tidak ada jadwal pegawai yang cocok dengan filter yang dipilih." />
+                    description="Tidak ada data absensi yang cocok dengan filter yang dipilih pada periode ini." />
             @else
                 <div class="overflow-x-auto">
                     <table class="min-w-full text-sm">
@@ -74,22 +74,22 @@
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
-                            @foreach ($jadwal as $item)
+                            @foreach ($rows as $baris)
                                 @php
-                                    $absensi = $item->pegawai?->absensi->firstWhere(fn ($a) => $a->tanggal?->toDateString() === $item->tanggal?->toDateString());
-                                    $jadwalAktif = $item->status === \App\Models\JadwalPegawai::STATUS_TERJADWAL;
+                                    $efektif = $baris['efektif'];
+                                    $absensi = $baris['absensi'];
                                 @endphp
                                 <tr>
-                                    <td class="px-3 py-2 text-slate-600">{{ $item->tanggal->format('d/m/Y') }}</td>
+                                    <td class="px-3 py-2 text-slate-600">{{ $baris['tanggal']->format('d/m/Y') }}</td>
                                     <td class="px-3 py-2">
-                                        <p class="font-medium text-slate-700">{{ $item->pegawai?->nama ?? '-' }}</p>
-                                        <p class="text-xs text-slate-500">{{ $item->pegawai?->jabatan ?? '-' }} &middot; {{ $item->pegawai?->bagian ?? '-' }}</p>
+                                        <p class="font-medium text-slate-700">{{ $baris['pegawai']->nama }}</p>
+                                        <p class="text-xs text-slate-500">{{ $baris['pegawai']->jabatan ?? '-' }} &middot; {{ $baris['pegawai']->bagian ?? '-' }}</p>
                                     </td>
-                                    <td class="px-3 py-2 text-slate-600">{{ $jadwalAktif ? ($item->jam_masuk?->format('H:i') ?? '-') : '-' }}</td>
-                                    <td class="px-3 py-2 text-slate-600">{{ $jadwalAktif ? ($item->jam_pulang?->format('H:i') ?? '-') : '-' }}</td>
+                                    <td class="px-3 py-2 text-slate-600">{{ $efektif?->jamMasuk?->format('H:i') ?? '-' }}</td>
+                                    <td class="px-3 py-2 text-slate-600">{{ $efektif?->jamPulang?->format('H:i') ?? '-' }}</td>
                                     <td class="px-3 py-2 text-slate-600">{{ $absensi?->jam_masuk?->format('H:i') ?? '-' }}</td>
                                     <td class="px-3 py-2 text-slate-600">{{ $absensi?->jam_pulang?->format('H:i') ?? '-' }}</td>
-                                    <td class="px-3 py-2">@include('absensi._status_badge', ['status' => $item->statusRekap()])</td>
+                                    <td class="px-3 py-2">@include('absensi._status_badge', ['status' => $baris['status']])</td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -97,7 +97,7 @@
                 </div>
 
                 <div class="mt-4">
-                    {{ $jadwal->links() }}
+                    {{ $rows->links() }}
                 </div>
             @endif
         </x-card>
